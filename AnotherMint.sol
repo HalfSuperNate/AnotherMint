@@ -15,6 +15,7 @@ import {Base64} from "solady/src/utils/Base64.sol";
 
 /// @author developer's github https://github.com/HalfSuperNate
 contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
+    using LibString for *;
 
     mapping(uint256 => address) public batchAddress;
     mapping(address => uint256) public addressBatch;
@@ -67,6 +68,132 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
     }
 
     /**
+     * @dev Returns data for a batch ID .
+     * @param _ID The batch ID to fetch data.
+     */
+    function tokenBatchData(uint256 _ID, bool _Base64) public view returns (string memory) {
+        if (_ID < tokenBatchID.length){
+            address _tokenAddress;
+            string memory _tokenIDs = "[]";
+            string memory _amounts = "[]";
+            string memory _randomized = tokenBatchID[_ID].randomize ? "true" : "false";
+            if (tokenBatchID[_ID].tokenType == 20) {
+                _tokenAddress = tokenBatchID[_ID].erc20.tokenAddress;
+                //_tokenIDs = "[]";
+                _amounts = string(abi.encodePacked(
+                    tokenBatchID[_ID].erc20.balance, 
+                    '", "decimals": "', 
+                    tokenBatchID[_ID].erc20.decimals
+                ));
+            }
+            if (tokenBatchID[_ID].tokenType == 721) {
+                _tokenAddress = tokenBatchID[_ID].erc721.tokenAddress;
+                _tokenIDs = getUintArrayString(tokenBatchID[_ID].erc721.tokenIDs);
+                //_amounts = "[]";
+            }
+            if (tokenBatchID[_ID].tokenType == 1155) {
+                _tokenAddress = tokenBatchID[_ID].erc1155.tokenAddress;
+                _tokenIDs = getUintArrayString(tokenBatchID[_ID].erc1155.tokenIDs);
+                _amounts = getUintArrayString(tokenBatchID[_ID].erc1155.balances);
+            }
+            string memory json = string(abi.encodePacked(
+                '{"tokenType": "', 
+                tokenBatchID[_ID].tokenType.toString(),
+                '", "tokenAddress": "', 
+                (_tokenAddress), 
+                '", "tokenIDs": "', 
+                _tokenIDs,
+                '", "tokenAmounts": "', 
+                _amounts,
+                '", "root": "', 
+                bytes32ToString(tokenBatchID[_ID].root), 
+                '", "randomize": "', 
+                _randomized, 
+                '", "minted": "', 
+                tokenBatchID[_ID].minted.toString(), 
+                '"}'
+            ));
+
+            if (_Base64) {
+                json = Base64.encode(bytes(json));
+                return string(abi.encodePacked('data:application/json;base64,', json));
+            }
+
+            return json;
+        } else {
+            revert InvalidID();
+        }
+    }
+
+    // function addressToString(address _address) public pure returns (string memory) {
+    //     bytes32 result;
+    //     assembly {
+    //         // Convert address to bytes32
+    //         result := mload(0x40)
+    //         mstore(result, _address)
+    //     }
+
+    //     // Convert bytes32 to string
+    //     bytes memory str = new bytes(42); // 0x + 40 characters
+    //     for (uint256 i = 0; i < 20; i++) {
+    //         bytes1 char = bytes1(result[i]);
+    //         bytes1 hi = bytes1(uint8(char) / 16);
+    //         bytes1 lo = bytes1(uint8(char) % 16);
+
+    //         str[i * 2] = charToHexChar(hi);
+    //         str[i * 2 + 1] = charToHexChar(lo);
+    //     }
+
+    //     return string(str);
+    // }
+
+    // function charToHexChar(bytes1 _char) internal pure returns (bytes1) {
+    //     return
+    //         _char < 10
+    //             ? _char + 0x30
+    //             : (_char - 10 + 0x61); // Convert to lowercase hexadecimal ASCII
+    // }
+
+    function bytes32ToString(bytes32 _bytes32) public pure returns (string memory) {
+        // Convert bytes32 to bytes
+        bytes memory bytesArray = new bytes(32);
+        for (uint256 i = 0; i < 32; i++) {
+            bytesArray[i] = _bytes32[i];
+        }
+
+        // Find the length of the string
+        uint256 length = 0;
+        while (length < 32 && bytesArray[length] != 0) {
+            length++;
+        }
+
+        // Create a bytes array with the correct length
+        bytes memory result = new bytes(length);
+
+        // Copy the bytes to the result array
+        for (uint256 i = 0; i < length; i++) {
+            result[i] = bytesArray[i];
+        }
+
+        // Convert bytes to string
+        return string(result);
+    }
+
+    function getUintArrayString(uint256[] memory _array) internal pure returns (string memory) {
+        string memory concatenatedString;
+
+        for (uint256 i = 0; i < _array.length; i++) {
+            if(i == _array.length - 1){
+                concatenatedString = string(abi.encodePacked(concatenatedString, _array[i]));
+            } else{
+                concatenatedString = string(abi.encodePacked(concatenatedString, _array[i], ","));
+            }
+        }
+        concatenatedString = string(abi.encodePacked("[", concatenatedString, "]"));
+        return concatenatedString;
+    }
+
+    /**
      * @dev Allow admins to set paused state for a Batch.
      * @param _ID The ID of the Batch to edit.
      * @param _state Paused state to set.
@@ -92,6 +219,27 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
         }
     }
 
+    /**
+     * @dev Allow admins to set randomize state for a Batch.
+     * @param _ID The ID of the Batch to edit.
+     * @param _state Randomize state to set.
+     */
+    function setRandomize(uint256 _ID, bool _state) public onlyAdmins {
+        if (_ID < tokenBatchID.length){
+            tokenBatchID[_ID].randomize = _state;
+        } else {
+            revert InvalidID();
+        }
+    }
+
+    /**
+     * @dev Allow admins to set Batch root.
+     * @param _tokenType The token standard 20, 721, or 1155.
+     * @param _tokenAddress Contract address for the token.
+     * @param _tokenIDs The list of token IDs.
+     * @param _amounts The list of token amounts.
+     * @param _isRandom The flag if minting will be random.
+     */
     function createBatch(uint256 _tokenType, address _tokenAddress, uint256[] calldata _tokenIDs, uint256[] calldata _amounts, bool _isRandom) public onlyAdmins {
         require(_tokenType == 20 || _tokenType == 721 || _tokenType == 1155, "Invalid Type");
         uint256 newBatchID = tokenBatchID.length;
@@ -157,14 +305,30 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
     }
 
     /**
+     * @dev Allows users to get cost on an amount of tokens.
+     * @param _ID The token batch ID.
+     * @param _amount The amount of tokens to mint.
+     */
+    function getCost(uint256 _ID, uint256 _amount) public view returns (uint256) {
+        if (tokenBatchID[_ID].tokenType == 20) {
+            return cost[_ID] * (_amount / 10 ** tokenBatchID[_ID].erc20.decimals);
+        } else {
+            return cost[_ID] * _amount;
+        }
+    }
+
+    /**
      * @dev Allows users to mint an amount of tokens.
+     * @param proof Used for verification or leave empty as [].
+     * @param _to The send to address.
+     * @param _ID The token batch ID.
      * @param _amount The amount of tokens to mint.
      */
     function mint(bytes32[] memory proof, address _to, uint256 _ID, uint256 _amount) external payable nonReentrant {
         if (!checkIfAdmin()) {
             if (paused[_ID]) revert Paused();
             if (overLimit(_ID, _amount)) revert OverMintLimit();
-            if (msg.value < cost[_ID] * _amount) revert ErrorMintTxPrice(); // ❌ adjust for ERC20 decimals
+            if (msg.value < getCost(_ID, _amount)) revert ErrorMintTxPrice();
 
             if (tokenBatchID[_ID].root != tokenBatchID[0].root) {
                 if (!verifyUser(proof, _ID, msg.sender)) revert NotListed();
@@ -245,6 +409,11 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
         return (false);
     }
 
+    /**
+     * @dev Use to check if an amount will be over the token limit.
+     * @param _ID The token batch ID.
+     * @param _amount The amount of tokens to check.
+     */
     function overLimit(uint256 _ID, uint256 _amount) public view returns(bool) {
         if (tokenBatchID[_ID].tokenType == 20) {
             if (_amount > tokenBatchID[_ID].erc20.balance) return true;
