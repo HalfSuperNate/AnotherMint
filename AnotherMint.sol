@@ -48,6 +48,7 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
         ERC1155Token erc1155;
         bytes32 root;
         bool randomize;
+        uint256 minted;
     }
 
     TokenBatch[] public tokenBatchID;
@@ -136,7 +137,8 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
             erc721: newERC721,
             erc1155: newERC1155,
             root: 0x0000000000000000000000000000000000000000000000000000000000000000,
-            randomize: _isRandom
+            randomize: _isRandom,
+            minted: 0
         });
 
         // Add the new batch to list
@@ -167,6 +169,63 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
             }
         }
         // simulate another mint for that batch here ⭕️
+        if (tokenBatchID[_ID].tokenType == 20) {
+            tokenBatchID[_ID].erc20.balance -= _amount;
+            // Transfer tokens to minter
+            IERC20(tokenBatchID[_ID].erc20.tokenAddress).transferFrom(address(this), _to, _amount);
+        }
+
+        if (tokenBatchID[_ID].tokenType == 721) {
+            // Transfer tokens to minter
+            if (!tokenBatchID[_ID].randomize) {
+                // not random, mint from end of list and pop last token after transfer
+                for (uint256 i = 0; i < _amount; i++) {
+                    // transfer the last element from the tokenIDs array then remove it
+                    IERC721(tokenBatchID[_ID].erc721.tokenAddress).transferFrom(address(this), _to, tokenBatchID[_ID].erc721.tokenIDs[tokenBatchID[_ID].erc721.tokenIDs.length - 1]);
+                    tokenBatchID[_ID].erc721.tokenIDs.pop();
+                }
+            } else {
+                //randomize the end of the array, mint from end of list and pop last token after transfer
+                for (uint256 i = 0; i < _amount; i++) {
+                    uint256 random = uint(getRandom(i, 0, int(tokenBatchID[_ID].erc721.tokenIDs.length - 1)));
+                    (tokenBatchID[_ID].erc721.tokenIDs[random], tokenBatchID[_ID].erc721.tokenIDs[tokenBatchID[_ID].erc721.tokenIDs.length - 1]) = (tokenBatchID[_ID].erc721.tokenIDs[tokenBatchID[_ID].erc721.tokenIDs.length - 1], tokenBatchID[_ID].erc721.tokenIDs[random]);
+                    // transfer the last element from the tokenIDs array then remove it
+                    IERC721(tokenBatchID[_ID].erc721.tokenAddress).transferFrom(address(this), _to, tokenBatchID[_ID].erc721.tokenIDs[tokenBatchID[_ID].erc721.tokenIDs.length - 1]);
+                    tokenBatchID[_ID].erc721.tokenIDs.pop();
+                }
+            }
+        }
+
+        if (tokenBatchID[_ID].tokenType == 1155) {
+            uint256[] memory _tokenIDs = new uint256[](_amount);
+            uint256[] memory _amounts = new uint256[](_amount);
+            // Transfer batch of tokens to minter
+            if (!tokenBatchID[_ID].randomize) {
+                // not random, mint from end of list and pop last token after transfer
+                for (uint256 i = 0; i < _amount; i++) {
+                    // push the last element from the tokenIDs array then remove it
+                    _tokenIDs[i] = tokenBatchID[_ID].erc1155.tokenIDs[tokenBatchID[_ID].erc1155.tokenIDs.length - 1];
+                    _amounts[i] = tokenBatchID[_ID].erc1155.balances[tokenBatchID[_ID].erc1155.balances.length - 1];
+                    tokenBatchID[_ID].erc1155.tokenIDs.pop();
+                    tokenBatchID[_ID].erc1155.balances.pop();
+                }
+            } else {
+                //randomize the end of the array, mint from end of list and pop last token after transfer
+                for (uint256 i = 0; i < _amount; i++) {
+                    uint256 random = uint(getRandom(i, 0, int(tokenBatchID[_ID].erc1155.tokenIDs.length - 1)));
+                    (tokenBatchID[_ID].erc1155.tokenIDs[random], tokenBatchID[_ID].erc1155.tokenIDs[tokenBatchID[_ID].erc1155.tokenIDs.length - 1]) = (tokenBatchID[_ID].erc1155.tokenIDs[tokenBatchID[_ID].erc1155.tokenIDs.length - 1], tokenBatchID[_ID].erc1155.tokenIDs[random]);
+                    (tokenBatchID[_ID].erc1155.balances[random], tokenBatchID[_ID].erc1155.balances[tokenBatchID[_ID].erc1155.balances.length - 1]) = (tokenBatchID[_ID].erc1155.balances[tokenBatchID[_ID].erc1155.balances.length - 1], tokenBatchID[_ID].erc1155.balances[random]);
+                    // push the last element from the tokenIDs array then remove it
+                    _tokenIDs[i] = tokenBatchID[_ID].erc1155.tokenIDs[tokenBatchID[_ID].erc1155.tokenIDs.length - 1];
+                    _amounts[i] = tokenBatchID[_ID].erc1155.balances[tokenBatchID[_ID].erc1155.balances.length - 1];
+                    tokenBatchID[_ID].erc1155.tokenIDs.pop();
+                    tokenBatchID[_ID].erc1155.balances.pop();
+                }
+            }
+            IERC1155(tokenBatchID[_ID].erc1155.tokenAddress).safeBatchTransferFrom(address(this), msg.sender, _tokenIDs, _amounts, "");
+        }
+
+        tokenBatchID[_ID].minted += _amount;
     }
 
     /**
@@ -256,7 +315,8 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
             erc721: _newToken,
             erc1155: __newToken,
             root: 0x0000000000000000000000000000000000000000000000000000000000000000,
-            randomize: false
+            randomize: false,
+            minted: 0
         });
 
         tokenBatchID.push(newBatch);
