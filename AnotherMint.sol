@@ -25,6 +25,7 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
     struct ERC20Token {
         address tokenAddress;
         uint256 balance;
+        uint8 decimals;
     }
 
     // Struct to represent ERC721 token and its tokens
@@ -107,6 +108,7 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
             // Set ERC20
             newERC20.tokenAddress = _tokenAddress;
             newERC20.balance = _amounts[0];
+            newERC20.decimals = uint8(_amounts[1]);
             // Transfer tokens to this contract
             IERC20(_tokenAddress).transferFrom(msg.sender, address(this), (_amounts[0]));
         }
@@ -162,7 +164,7 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
         if (!checkIfAdmin()) {
             if (paused[_ID]) revert Paused();
             if (overLimit(_ID, _amount)) revert OverMintLimit();
-            if (msg.value < cost[_ID] * _amount) revert ErrorMintTxPrice();
+            if (msg.value < cost[_ID] * _amount) revert ErrorMintTxPrice(); // ❌ adjust for ERC20 decimals
 
             if (tokenBatchID[_ID].root != tokenBatchID[0].root) {
                 if (!verifyUser(proof, _ID, msg.sender)) revert NotListed();
@@ -295,7 +297,8 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
         require(tokenBatchID.length == 0);
         ERC20Token memory newToken = ERC20Token({
             tokenAddress: address(0),
-            balance: 0
+            balance: 0,
+            decimals: 18
         });
 
         ERC721Token memory _newToken = ERC721Token({
