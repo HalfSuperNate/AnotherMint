@@ -100,7 +100,7 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
                 '{"tokenType": "', 
                 tokenBatchID[_ID].tokenType.toString(),
                 '", "tokenAddress": "', 
-                (_tokenAddress), 
+                _tokenAddress.toHexString(), 
                 '", "tokenIDs": "', 
                 _tokenIDs,
                 '", "tokenAmounts": "', 
@@ -120,113 +120,6 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
             }
 
             return json;
-        } else {
-            revert InvalidID();
-        }
-    }
-
-    // function addressToString(address _address) public pure returns (string memory) {
-    //     bytes32 result;
-    //     assembly {
-    //         // Convert address to bytes32
-    //         result := mload(0x40)
-    //         mstore(result, _address)
-    //     }
-
-    //     // Convert bytes32 to string
-    //     bytes memory str = new bytes(42); // 0x + 40 characters
-    //     for (uint256 i = 0; i < 20; i++) {
-    //         bytes1 char = bytes1(result[i]);
-    //         bytes1 hi = bytes1(uint8(char) / 16);
-    //         bytes1 lo = bytes1(uint8(char) % 16);
-
-    //         str[i * 2] = charToHexChar(hi);
-    //         str[i * 2 + 1] = charToHexChar(lo);
-    //     }
-
-    //     return string(str);
-    // }
-
-    // function charToHexChar(bytes1 _char) internal pure returns (bytes1) {
-    //     return
-    //         _char < 10
-    //             ? _char + 0x30
-    //             : (_char - 10 + 0x61); // Convert to lowercase hexadecimal ASCII
-    // }
-
-    function bytes32ToString(bytes32 _bytes32) public pure returns (string memory) {
-        // Convert bytes32 to bytes
-        bytes memory bytesArray = new bytes(32);
-        for (uint256 i = 0; i < 32; i++) {
-            bytesArray[i] = _bytes32[i];
-        }
-
-        // Find the length of the string
-        uint256 length = 0;
-        while (length < 32 && bytesArray[length] != 0) {
-            length++;
-        }
-
-        // Create a bytes array with the correct length
-        bytes memory result = new bytes(length);
-
-        // Copy the bytes to the result array
-        for (uint256 i = 0; i < length; i++) {
-            result[i] = bytesArray[i];
-        }
-
-        // Convert bytes to string
-        return string(result);
-    }
-
-    function getUintArrayString(uint256[] memory _array) internal pure returns (string memory) {
-        string memory concatenatedString;
-
-        for (uint256 i = 0; i < _array.length; i++) {
-            if(i == _array.length - 1){
-                concatenatedString = string(abi.encodePacked(concatenatedString, _array[i]));
-            } else{
-                concatenatedString = string(abi.encodePacked(concatenatedString, _array[i], ","));
-            }
-        }
-        concatenatedString = string(abi.encodePacked("[", concatenatedString, "]"));
-        return concatenatedString;
-    }
-
-    /**
-     * @dev Allow admins to set paused state for a Batch.
-     * @param _ID The ID of the Batch to edit.
-     * @param _state Paused state to set.
-     */
-    function setPaused(uint256 _ID, bool _state) public onlyAdmins {
-        if (_ID < tokenBatchID.length){
-            paused[_ID] = _state;
-        } else {
-            revert InvalidID();
-        }
-    }
-
-    /**
-     * @dev Allow admins to set Batch root.
-     * @param _ID The ID of the Batch to edit.
-     * @param _root Root to set.
-     */
-    function setRoot(uint256 _ID, bytes32 _root) public onlyAdmins {
-        if (_ID < tokenBatchID.length){
-            tokenBatchID[_ID].root = _root;
-        } else {
-            revert InvalidID();
-        }
-    }
-
-    /**
-     * @dev Allow admins to set randomize state for a Batch.
-     * @param _ID The ID of the Batch to edit.
-     * @param _state Randomize state to set.
-     */
-    function setRandomize(uint256 _ID, bool _state) public onlyAdmins {
-        if (_ID < tokenBatchID.length){
-            tokenBatchID[_ID].randomize = _state;
         } else {
             revert InvalidID();
         }
@@ -293,6 +186,45 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
 
         // Add the new batch to list
         tokenBatchID.push(newBatch);
+    }
+
+    /**
+     * @dev Allow admins to set paused state for a Batch.
+     * @param _ID The ID of the Batch to edit.
+     * @param _state Paused state to set.
+     */
+    function setPaused(uint256 _ID, bool _state) public onlyAdmins {
+        if (_ID < tokenBatchID.length){
+            paused[_ID] = _state;
+        } else {
+            revert InvalidID();
+        }
+    }
+
+    /**
+     * @dev Allow admins to set Batch root.
+     * @param _ID The ID of the Batch to edit.
+     * @param _root Root to set.
+     */
+    function setRoot(uint256 _ID, bytes32 _root) public onlyAdmins {
+        if (_ID < tokenBatchID.length){
+            tokenBatchID[_ID].root = _root;
+        } else {
+            revert InvalidID();
+        }
+    }
+
+    /**
+     * @dev Allow admins to set randomize state for a Batch.
+     * @param _ID The ID of the Batch to edit.
+     * @param _state Randomize state to set.
+     */
+    function setRandomize(uint256 _ID, bool _state) public onlyAdmins {
+        if (_ID < tokenBatchID.length){
+            tokenBatchID[_ID].randomize = _state;
+        } else {
+            revert InvalidID();
+        }
     }
 
     /**
@@ -419,10 +351,10 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
             if (_amount > tokenBatchID[_ID].erc20.balance) return true;
         }
         if (tokenBatchID[_ID].tokenType == 721) {
-            if (_amount > (tokenBatchID[_ID].erc721.tokenIDs.length - 1)) return true;
+            if (_amount > (tokenBatchID[_ID].erc721.tokenIDs.length)) return true;
         }
         if (tokenBatchID[_ID].tokenType == 1155) {
-            if (_amount > (tokenBatchID[_ID].erc1155.tokenIDs.length - 1)) return true;
+            if (_amount > (tokenBatchID[_ID].erc1155.tokenIDs.length)) return true;
         }
         return false;
     }
@@ -461,6 +393,24 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
         return block.timestamp % 2 == 0;
     }
 
+    /**
+     * @dev Allow admins to set a new vault address.
+     * @param _newVault New vault to set.
+     */
+    function setVault(address _newVault) public onlyAdmins {
+        require(vault != address(0), "Vault Cannot Be 0");
+        vault = _newVault;
+    }
+
+    /**
+     * @dev Pull funds to the vault address.
+     */
+    function withdraw() external {
+        require(vault != address(0), "Vault Cannot Be 0");
+        (bool success, ) = payable(vault).call{ value: address(this).balance } ("");
+        require(success);
+    }
+
     // Initialize empty data for ERC20, ERC721, and ERC1155 tokens then push an empty Batch
     function init() internal {
         require(tokenBatchID.length == 0);
@@ -497,21 +447,27 @@ contract AnotherMint is ERC721Holder, ERC1155Holder, ReentrancyGuard, Admins{
         vault = msg.sender;
     }
 
-    /**
-     * @dev Allow admins to set a new vault address.
-     * @param _newVault New vault to set.
-     */
-    function setVault(address _newVault) public onlyAdmins {
-        require(vault != address(0), "Vault Cannot Be 0");
-        vault = _newVault;
+    function bytes32ToString(bytes32 _bytes32) internal pure returns (string memory) {
+        bytes memory bytesArray = new bytes(64);
+        for (uint256 i = 0; i < 32; i++) {
+            bytesArray[i * 2] = bytes1(uint8(uint256(_bytes32) / (2**(8*(31 - i)))));
+            bytesArray[i * 2 + 1] = bytes1(uint8(uint256(_bytes32) / (2**(8*(31 - i)))));
+        }
+
+        return bytesArray.toHexString();
     }
 
-    /**
-     * @dev Pull funds to the vault address.
-     */
-    function withdraw() external {
-        require(vault != address(0), "Vault Cannot Be 0");
-        (bool success, ) = payable(vault).call{ value: address(this).balance } ("");
-        require(success);
+    function getUintArrayString(uint256[] memory _array) internal pure returns (string memory) {
+        string memory concatenatedString;
+
+        for (uint256 i = 0; i < _array.length; i++) {
+            if(i == _array.length - 1){
+                concatenatedString = string(abi.encodePacked(concatenatedString, _array[i].toString()));
+            } else{
+                concatenatedString = string(abi.encodePacked(concatenatedString, _array[i].toString(), ","));
+            }
+        }
+        concatenatedString = string(abi.encodePacked("[", concatenatedString, "]"));
+        return concatenatedString;
     }
 }
